@@ -1,0 +1,43 @@
+ Expected Enhancements & Performance Targets
+
+| Area               | Requirement                                                                                                    |
+|--------------------|----------------------------------------------------------------------------------------------------------------|
+| **Core scraping**  | Extract **name, title, company, location, headline, summary, industry, education** for ≥95% of reachable profiles in a 10k batch. Implement exponential back-off and resume logic on errors. |
+| **Proxy rotation** | New IP each profile; retry up to 3× on LinkedIn rate-limits or CAPTCHA; record proxy usage metrics for cost tracking. |
+| **Container & CI/CD** | Multi-stage Docker (<600 MB) with `/healthz` endpoint; GitHub Actions → Azure Container Registry → Container Apps (blue/green). |
+| **Secrets**        | Use Azure Key Vault via workload identity; do not log secrets or expose them in output.                        |
+| **Job API**        | FastAPI microservice: `POST /jobs` (accept SAS URL + params) and `GET /jobs/{id}` (status JSON); optional WebSocket for progress. |
+| **Storage**        | Azure Blob Storage: `/tenant-id/{job-id}/input.xlsx` and `/output.xlsx`; API returns signed SAS URLs.          |
+| **Observability**  | JSON-structured logs → Azure Monitor; Prometheus at `/metrics` (counts: success, LinkedIn errors, proxy bytes).  |
+| **Resume logic**   | On restart with `resume=true`, skip completed URLs using cursor stored in Azure Cache for Redis, avoiding duplicates. |
+| **Security**       | No data persists beyond job folder; delete temp files post-export; comply with “no data at rest.”               |
+
+---
+
+## 3 · Deliverables & Definition-of-Done
+
+1. **Passing CI**: `make test` and lint checks succeed; Docker image builds and deploys to dev slot (`my-scraper-dev.azurecontainerapps.io`).
+2. **Local run**: `examples/run_local.sh linkedin_data_successful_2025-07-20.xlsx` outputs an Excel matching the sample schema exactly.
+3. **Resume test**: Kill the container mid-job, rerun with same SAS URL and `resume=true`, and finish without duplicate entries.
+4. **Documentation**: `README.md` updated with local dev steps, env-var list, and proxy cost note (~$20–30 per 10k).  
+5. **Performance**: 50-profile smoke test completes in <7 minutes on free BrightData tier.
+
+---
+
+## 4 · Scope Exclusions (Can Ignore for Now)
+
+- Front-end dashboard (React/Remix)
+- Billing or Stripe integration
+- Multi-tenant role-based auth UI
+
+(Planned for Milestone 3.)
+
+---
+
+### Tips for the Replit AI-Agent
+
+- **Trace the flow**: CLI → `excel_io` → `scraper` → `excel_io` → upload.
+- **Write tests early**: Use Playwright’s `--device-descriptor` “Desktop Chrome” in `pytest-playwright`.
+- **Handle rate limits**: Treat 429 as retryable, escalate after 3 attempts.
+- **Use concurrency primitives**: `asyncio.Semaphore` for `--max-concurrency`.
+- **Adhere to logging contract**: e.g., `logger.info("event=page_scraped url=... status=success")`.
