@@ -1,26 +1,39 @@
-import { Pool, neonConfig } from '@neondatabase/serverless';
-import { drizzle } from 'drizzle-orm/neon-serverless';
+// server/db.ts
+import 'dotenv/config';
+import { neonConfig, Pool } from '@neondatabase/serverless';
 import ws from 'ws';
-import * as schema from '@shared/schema';
+import { drizzle } from 'drizzle-orm/neon-serverless';
+import * as schema from '../shared/schema'; // adjust path if needed
 
-neonConfig.webSocketConstructor = ws;
-async function startDevServer() {
-  const installProcess = await webcontainerInstance.spawn('npm', ['install']);
-
-  const installExitCode = await installProcess.exit;
-
-  if (installExitCode !== 0) {
-    throw new Error('Unable to run npm install');
-  }
-
-  // `npm run dev`
-  await webcontainerInstance.spawn('npm', ['run', 'dev']);
-}
-if (!process.env.DATABASE_URL) {
-  throw new Error(
-    'DATABASE_URL must be set. Did you forget to provision a database?'
-  );
+// Only set ws constructor in Node (not in edge/browser)
+if (typeof window === 'undefined') {
+  neonConfig.webSocketConstructor = ws as any;
 }
 
-export const pool = new Pool({ connectionString: process.env.DATABASE_URL });
-export const db = drizzle({ client: pool, schema });
+const connectionString = process.env.DATABASE_URL;
+if (!connectionString) {
+  throw new Error('DATABASE_URL is missing. Provision the DB and set it in .env');
+}
+
+// --- Singleton pattern ---
+let _pool: Pool | undefined;
+let _db: ReturnType<typeof drizzle> | undefined;
+
+export function getPool() {
+  if (!_pool) _pool = new Pool({ connectionString });
+  return _pool;
+}
+
+export function getDb() {
+  if (!_db) _db = drizzle(getPool(), { schema });
+  return _db;
+}
+
+// Common exports
+export const pool = getPool();
+export const db = getDb();
+
+// Optional quick healthcheck
+export async function healthcheck() {
+  await pool.query('select 1');
+}
