@@ -4,7 +4,7 @@ import ws from 'ws';
 import * as schema from '@shared/schema';
 
 neonConfig.webSocketConstructor = ws;
-async function startDevServer() {
+export async function startDevServer() {
   const installProcess = await webcontainerInstance.spawn('npm', ['install']);
 
   const installExitCode = await installProcess.exit;
